@@ -1,0 +1,20 @@
+.formContainer {
+    width : 48%;
+    float: left;
+}
+
+.buttonMargin {
+    margin: 5px;
+    width : 150px;
+}
+
+.buttonFloat {
+    float: right;
+    clear: both;
+}
+
+.formValues{
+    float : left;
+    clear : right;
+    width : 48%;
+}

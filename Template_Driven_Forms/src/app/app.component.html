@@ -1,0 +1,247 @@
+<!--The content below is only a placeholder and can be replaced.-->
+<!--When we add the form tag to the html in angular angular automatically addds ngForm directive to the form behind 
+the scenes , we can access that using a template refernce variable to check the state of the form as well as its form 
+control instances. Angular builds the form moddel for us. NgForm directive is exported as ngForm-->
+<div class="container-fluid formContainer">
+  <form #userForm = "ngForm">
+    <div class="panel" style = 'text-align: center'>
+      <h3 class="panel-heading">User Information Form</h3>
+    </div>
+
+    <!--Label and input field to capture first name value of the user-->
+    <div class="form-group" 
+    [class.has-error]='firstName.invalid && (firstName.touched || firstName.dirty) && firstName.errors'>
+      <label for="firstNameProperty" class="control-label">
+        First Name
+      </label>
+      <!--If we just add the template reference variable it will contain a reference to the element on which we put it 
+      but it will not help angular in building its model-->
+      <!--If we want angular to build the form model for us than we need to make sure that the input type field has
+      a name attribute and ngModel directive added to that field. Angular will make use of name attribute to create 
+      the form control instance that is a key value pair, key will be the name of the element. If we do not add name
+      attribute to a tag than angular will throw error because it will make use use of the name for building form model-->
+      <!--We assign the ngModel to the template refernce variable so that we can use of angular's validation properties 
+      for the field else we will not be able to access its validation properties-->
+      <!--Whatever validation attributes that we add to an element angular pushes them to the errors collection,
+      we can make use of it and show user friendly messages based on the error-->
+      <input type="text" 
+      class="form-control" 
+      id="firstNameProperty" 
+      #firstName="ngModel" 
+      name="firstName" ngModel
+      minlength="3" 
+      required 
+      maxlength="25">
+      <div *ngIf = "firstName.invalid && (firstName.touched || firstName.dirty) && firstName.errors" class="alert alert-danger">
+          <span *ngIf="firstName.errors.required">Field is required</span>
+          <span *ngIf="firstName.errors.minlength">First Name must be 3 0r more more characters</span>
+      </div>
+    </div>
+
+    <!--Form group for last name field-->
+    <div class="form-group" [class.has-error] = 'lastName.invalid && (lastName.touched || lastName.dirty) && lastName.errors'>
+      <label for="lastNameProperty" class="control-label">
+        Last Name
+      </label>
+      <input type="text" class="form-control" 
+      id="lastNameProperty"
+      #lastName="ngModel"
+      name="lastName"
+      ngModel 
+      minlength="3"
+      required 
+      maxlength="25">
+      <div *ngIf = "lastName.invalid && (lastName.touched || lastName.dirty) && lastName.errors" class="alert alert-danger">
+          <span *ngIf="lastName.errors.required">Field is required</span>
+          <span *ngIf="lastName.errors.minlength">Last Name must be 3 0r more more characters</span>
+      </div>
+    </div>
+
+    <div class="form-group" [class.has-error] = "hasError">
+        <label for="selectCity"> 
+          City </label>
+        <select 
+        class="form-control" 
+        id="selectCity"
+        #selectCity = "ngModel"
+        [(ngModel)] = "selectedCity"
+        (blur) = "hasCityError(selectCity)"
+        (change) = "hasCityError(selectCity)"
+        required 
+        name = "city">
+          <option selected value="default">Select City</option>
+          <option value = "Delhi">Delhi</option>
+          <option value="Mumbai">Mumbai</option>
+          <option value="Bangalore">Bangalore</option>
+        </select>
+      </div>
+
+    <!--If we set checked property for a radio than it won't work if ngModel directive is placed on the element , 
+    so for that to work we have to bind it to a model property using ngModel-->
+    <div class="form-group">
+      <label>Employement Type </label>
+      <div class="radio">
+        <label>
+          <input 
+          type="radio" 
+          name="employmentType" 
+          [(ngModel)] = "employMentType"
+          #employmentType="ngModel"
+          value="FTE"
+          checked>
+          Full Time Employee
+        </label>
+      </div>
+
+      <div class="radio">
+        <label>
+          <input 
+          type="radio" 
+          name="employmentType" 
+          [(ngModel)] = "employMentType"
+          #employmentType="ngModel" 
+          value="Vendor">
+          Contractor
+        </label>
+      </div>
+    </div>
+
+
+    <div class="form-group">
+      <div class="checkbox">
+        <label>
+          <input
+          type="checkbox"
+          value = "option1"
+          name="option1"
+          [(ngModel)] = "option1Value"
+          #option1 = "ngModel"
+          checked>
+          Option 1
+        </label>
+      </div>
+
+      <div class="checkbox">
+        <label>
+          <input 
+          type="checkbox"
+          value="option2"
+          name = "option2"
+          [(ngModel)] = "option2Value"
+          #option2 = "ngModel">
+          Option 2
+        </label>
+      </div>
+
+      <div class="checkbox">
+        <label>
+          <input
+          type="checkbox"
+          value="option3"
+          name = "option3"
+          [(ngModel)] = "option3Value"
+          #option3 = "ngModel">
+          Option 3
+        </label>
+      </div>
+    </div>
+
+    <!--Button for submit and cancel-->
+    <div>
+      <div class="buttonFloat">
+      <input type="submit" value="Submit" class="btn btn-primary buttonMargin" [disabled] = "userForm.invalid">
+      <input type="button" value="Cancel" class="btn btn-default buttonMargin">
+    </div>
+    </div>
+  </form>
+</div>
+<div class="container-fluid formValues">
+  <h3>Form Values</h3>
+    <table class="table table-striped">
+      <thead>
+        <tr>
+          <th>Field Name</th>
+          <th>Value</th>
+          <th>Pristine</th>
+          <th>Touched</th>
+          <th>Dirty</th>
+          <th>Untouched</th>
+          <th>Valid</th>
+          <th>Invalid</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>First Name</td>
+          <td>{{firstName.value}}</td>
+          <td>{{firstName.pristine}}</td>
+          <td>{{firstName.touched}}</td>
+          <td>{{firstName.dirty}}</td>
+          <td>{{firstName.untouched}}</td>
+          <td>{{firstName.valid}}</td>
+          <td>{{firstName.invalid}}</td>
+        </tr>
+        <tr>
+            <td>Last Name</td>
+            <td>{{lastName.value}}</td>
+            <td>{{lastName.pristine}}</td>
+            <td>{{lastName.touched}}</td>
+            <td>{{lastName.dirty}}</td>
+            <td>{{lastName.untouched}}</td>
+            <td>{{lastName.valid}}</td>
+            <td>{{lastName.invalid}}</td>
+          </tr>
+          <tr>
+            <td>Employment Type</td>
+            <td>{{employmentType.value}}</td>
+            <td>{{employmentType.pristine}}</td>
+            <td>{{employmentType.touched}}</td>
+            <td>{{employmentType.dirty}}</td>
+            <td>{{employmentType.untouched}}</td>
+            <td>{{employmentType.valid}}</td>
+            <td>{{employmentType.invalid}}</td>
+          </tr>
+          <tr *ngIf = "option1.value">
+              <td>Option 1</td>
+              <td>{{option1.value}}</td>
+              <td>{{option1.pristine}}</td>
+              <td>{{option1.touched}}</td>
+              <td>{{option1.dirty}}</td>
+              <td>{{option1.untouched}}</td>
+              <td>{{option1.valid}}</td>
+              <td>{{option1.invalid}}</td>
+            </tr>
+            <tr *ngIf = "option2.value">
+                <td>Option 2</td>
+                <td>{{option2.value}}</td>
+                <td>{{option2.pristine}}</td>
+                <td>{{option2.touched}}</td>
+                <td>{{option2.dirty}}</td>
+                <td>{{option2.untouched}}</td>
+                <td>{{option2.valid}}</td>
+                <td>{{option2.invalid}}</td>
+              </tr>
+              <tr *ngIf = "option3.value">
+                  <td>Option 3</td>
+                  <td>{{option3.value}}</td>
+                  <td>{{option3.pristine}}</td>
+                  <td>{{option3.touched}}</td>
+                  <td>{{option3.dirty}}</td>
+                  <td>{{option3.untouched}}</td>
+                  <td>{{option3.valid}}</td>
+                  <td>{{option3.invalid}}</td>
+                </tr>
+                <tr >
+                    <td>City</td>
+                    <td>{{selectCity.value}}</td>
+                    <td>{{selectCity.pristine}}</td>
+                    <td>{{selectCity.touched}}</td>
+                    <td>{{selectCity.dirty}}</td>
+                    <td>{{selectCity.untouched}}</td>
+                    <td>{{selectCity.valid}}</td>
+                    <td>{{selectCity.invalid}}</td>
+                  </tr>
+      </tbody>
+    </table>
+</div>
+
