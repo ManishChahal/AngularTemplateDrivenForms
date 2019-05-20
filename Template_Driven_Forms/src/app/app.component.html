@@ -245,3 +245,221 @@ control instances. Angular builds the form moddel for us. NgForm directive is ex
     </table>
 </div>
 
+----------------------------------------------------------------------------------------------------------------------------------------
+
+<!--Placeholder for the the meeting recurrence view-->
+<section class = 'meetingRecurrenceContainer' id = 'meetingRecurrenceContainer'>
+  <div class = 'recurrenceHeader' id = 'recurrenceHeader'>
+    <div class = 'recurrenceTitle' id = 'recurrenceTitle'>
+      {{constants.MEETING_RECURRENCE_ADD_RECURRENCE}}
+    </div>
+  </div>
+  <!--Placeholder for the date and duration label and values selected-->
+  <div class = 'dateDurationReflector' id = 'dateDurationReflector'>
+    <div class = 'dateReflector' id = 'dateReflector'>
+      <div class = 'dateLabelText' id = 'dateLabelText'>
+        <pre class = 'removeMargin'>Start Date : </pre>
+      </div>
+      <div class = 'dateText' id = 'dateText'>
+        {{meetingDate.format('ddd')}}, {{meetingDate.date()}} {{meetingDate.format('MMM')}} {{meetingDate.format('YYYY')}}
+      </div>
+    </div>
+
+    <div class = 'durationReflector' id = 'durationReflector'>
+      <div class = 'durationLabelText' id = 'durationLabelText'>
+        <pre class = 'removeMargin'>Duration : </pre>
+      </div>
+      <div class = 'durationText' id = 'durationText'>
+        {{meetingStartTime}} - {{meetingEndTime}}
+      </div>
+    </div>
+  </div>
+  <!--Placeholder for repeat every header-->
+  <div class = 'repeatEveryContainer' id = 'repeatEveryContainer'>
+    <div class = 'repeatContainer' id = 'repeatContainer'>
+      {{constants.MEETING_RECURRENCE_REPEAT}}
+    </div>
+
+    <div class = 'everyContainer' id = 'everyContainer'>
+      {{constants.MEETING_RECURRENCE_EVERY}}
+    </div>
+  </div>
+  <!--Placeholder for options and every counter value-->
+  <div class = 'optionsAndEveryContainer' id = 'optionsAndEveryContainer'>
+    <div class = 'optionsConatiner' id = 'optionsConatiner'>
+      <div class = 'options' id = 'options'>
+        <mat-select [ngModel] = 'optionSelected' (selectionChange) = 'onSelectionChange($event)'>
+          <mat-option *ngFor = 'let option of options' [value] = 'option'>
+            {{option}}
+          </mat-option>
+        </mat-select>
+      </div>
+    </div>
+
+    <div class = 'incrementDecrementContainer' id = 'incrementDecrementContainer' *ngIf = 'optionSelected === "Weekly"'>
+      <div class = 'decrementCounter' id = 'decrementCounter' (click) = 'decrementEveryWeekCounter()'>
+          <img src="assets/images/scheduler/minus2.png">
+      </div>
+      <div class = 'counterValue'>
+        {{weekCounter}}
+      </div>
+      <div class = 'incrementCounter' id = 'incrementCounter' (click) = 'incrementEveryWeekCounter()'>
+          <img src="assets/images/scheduler/plusSign.png">
+      </div>
+
+      <div class = 'selectedOptionNotifier' id = 'selectedOptionNotifier'>
+        <div *ngIf = 'optionSelected === "Weekly"'>
+          {{constants.MEETING_RECURRENCE_EVERY_WEEKS}}
+        </div>
+      </div>
+    </div>
+
+    <div class = 'incrementDecrementContainer' id = 'incrementDecrementContainer' *ngIf = 'optionSelected === "Daily"'>
+        <div class = 'decrementCounter' id = 'decrementCounter' (click) = 'decrementEveryDayCounter()'>
+            <img src="assets/images/scheduler/minus2.png">
+        </div>
+        <div class = 'counterValue'>
+          {{dailyCounter}}
+        </div>
+        <div class = 'incrementCounter' id = 'incrementCounter' (click) = 'incrementEveryDayCounter()'>
+            <img src="assets/images/scheduler/plusSign.png">
+        </div>
+  
+        <div class = 'selectedOptionNotifier' id = 'selectedOptionNotifier'>
+          <div *ngIf = 'optionSelected === "Daily"'>
+            {{constants.MEETING_RECURRENCE_EVERY_DAYS}}
+          </div>
+        </div>
+    </div>
+
+    <div class = 'incrementDecrementContainer' id = 'incrementDecrementContainer' *ngIf = 'optionSelected === "Monthly"'>
+        <div class = 'decrementCounter' id = 'decrementCounter' (click) = 'decrementEveryMonthCounter()'>
+            <img src="assets/images/scheduler/minus2.png">
+        </div>
+        <div class = 'counterValue'>
+          {{monthlyCounter}}
+        </div>
+        <div class = 'incrementCounter' id = 'incrementCounter' (click) = 'incrementEveryMonthCounter()'>
+            <img src="assets/images/scheduler/plusSign.png">
+        </div>
+  
+        <div class = 'selectedOptionNotifier' id = 'selectedOptionNotifier'>
+          <div *ngIf = 'optionSelected === "Monthly"'>
+            {{constants.MEETING_RECURRENCE_EVERY_MONTHS}}
+          </div>
+        </div>
+    </div>
+
+  </div>
+  <!--Placeholder for week days options-->
+  <div class = 'weekDaysOptionsContainer' id = 'weekDaysOptionsContainer' *ngIf = 'optionSelected === "Weekly"'>
+    <div class = 'weekDaysHeader' id = 'weekDaysHeader'>
+      {{constants.MEETING_RECURRENCE_ON_TEXT}}
+    </div>
+    <div class = 'daysOfWeek' id = 'daysOfWeek'>
+      <div *ngFor = 'let day of weekDays'>
+        <div class = 'dayReflectorNotSelected' id = 'dayReflectorNotSelected' *ngIf = '!day.isSelected' (click) = 'weekDaySelected(day)'>
+          <div class = 'dayDisplayValue' id = 'dayDisplayValue'>
+              {{day.displayValue}}
+          </div>
+        </div>
+
+        <div class = 'dayReflectorNotSelected dayReflectorSelected' id = 'dayReflectorSelected' *ngIf = 'day.isSelected' (click) = 'weekDaySelected(day)'>
+          <div class = 'dayDisplayValue dayDisplayValueSelected' id = 'dayDisplayValue'>
+              {{day.displayValue}}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!--Placeholder for the monthly options-->
+  <div class = 'monthlyOptions' id = 'monthlyOptions' *ngIf = 'optionSelected ===  "Monthly"'>
+    <div class = 'monthlyOptionsTextContainer'>
+      <div class = 'monthlyFirstOptionsText' id = 'monthlyFirstOptionsText'>
+        {{constants.MEETING_RECURRENCE_ON_TEXT}}
+      </div>
+
+      <div class = 'monthlySecondOptionsText' id = 'monthlySecondOptionsText'>
+        {{constants.MEETING_RECURRENCE_DAY_TEXT}}
+      </div>
+    </div>
+
+    <div class = 'monthlyOptionsContainer' id = 'monthlyOptionsContainer'>
+      <div class = 'monthlyFirstOptions' id = 'monthlyFirstOptions'>
+        <mat-select [(ngModel)] = 'weekOfMonthOptionSelected'>
+          <mat-option *ngFor = 'let weekOption of weeksOfMonth' [value] = 'weekOption' class="sc-autocomplete-style-1">
+            {{weekOption}}
+          </mat-option>
+        </mat-select>
+      </div>
+      <div class = 'monthlySecondOptions' id = 'monthlySecondOptions'>
+        <mat-select [(ngModel)] = 'monthWeekDaySelected' *ngIf = 'weekOfMonthOptionSelected !== "Day"'>
+            <mat-option *ngFor = 'let weekDay of monthWeekDays' [value] = 'weekDay' class="sc-autocomplete-style-1">
+              {{weekDay}}
+            </mat-option>
+        </mat-select>
+
+        <mat-select [(ngModel)] = 'dayOfTheMonth' *ngIf = 'weekOfMonthOptionSelected === "Day"'>
+          <mat-option *ngFor = 'let day of daysOfMonth' [value] = 'day'>
+            {{day}}
+          </mat-option>
+        </mat-select>
+      </div>
+    </div>
+  </div>
+
+  <!--Placeholder for on after never-->
+  <div class = 'meetingEnd' id = 'meetingEnd'>
+    <div class = 'endText' id = 'endText'>
+      {{constants.MEETING_RECURRENCE_ENDS_TEXT}}
+    </div>
+    <mat-radio-group [(ngModel)] = 'meetingEnd'>
+      <mat-radio-button *ngFor = 'let option of meetingEndOptions' [value] = 'option'>
+        {{option}}
+      </mat-radio-button>
+    </mat-radio-group>
+  </div>
+  <!--Placeholder for the number of occurences/end date-->
+  <div class = 'numberOfOccurences' id = 'numberOfOccurences' *ngIf = 'meetingEnd === "On"'>
+    <div class = 'dateSelected' id = 'dateSelected'>
+      <div class = 'dateSelectedText' id = 'dateSelectedText'>
+        {{recurrenceEndDate.format('ddd')}}, {{recurrenceEndDate.date()}} {{recurrenceEndDate.format('MMM')}} {{recurrenceEndDate.format('YYYY')}}
+      </div>
+    </div>
+
+    <div class = 'calendarIcon' id = 'calendarIcon'>
+      <div class = 'calendarWrapper' (click) = 'openSchedulerCalendar()'>
+          <img src = 'assets/images/scheduler/calendar-l-secondary.svg' id = 'openSchedulerCalendar'>
+      </div>
+      <div class = "schedulerCalendar" *ngIf = 'openCalendar' (appDetectOutsideClick) = 'closeSchedulerCalendar()'> 
+          <app-scheduler-calendar (notifyCancelEvent) = 'closeSchedulerCalendar()' (notifyDoneEvent) = 'userSelectedDateFromCalendar($event)'></app-scheduler-calendar>
+      </div>
+    </div>
+  </div>
+  <!--Placeholder for after option selected increment and decrement-->
+  <div class = 'numberOfOccurences' id = 'meetingEndsAfter' *ngIf = 'meetingEnd === "After"'>
+      <div class = 'decrementCounter' id = 'decrementCounterOptionAfter' (click) = 'decrementAfterCounter()'>
+          <img src="assets/images/scheduler/minus2.png">
+      </div>
+      <div class = 'counterValue'>
+        {{afterNumberOfOccurences}}
+      </div>
+      <div class = 'incrementCounter' id = 'incrementCounterOptionAfter' (click) = 'incrementAfterCounter()'>
+          <img src="assets/images/scheduler/plusSign.png">
+      </div>
+  </div>
+</section>
+
+<!--Placeholder for the footer buttons-->
+<section class="footerContainer">
+    <div class = "buttonsContainer">
+      <div class = "previousButton" (click) = 'cancelRecurrence()'>
+          {{constants.POP_UP_FOOTER_COMPONENT_CANCEL_TEXT}}
+      </div>
+  
+      <div class = 'recurrenceDoneLink' (click) = 'generateRecurrencePattern()'>
+          {{constants.POP_UP_FOOTER_COMPONENT_DONE_TEXT}}
+      </div>
+    </div>
+  </section>
