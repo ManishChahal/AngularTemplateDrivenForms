@@ -144,6 +144,9 @@ export class MeetingRecurrenceComponent implements OnInit {
    * Captures the end date of recurrence when on option is selected
    */
   public recurrenceEndDate =  moment();
+  /**
+   * Captures whether to set values or not
+   */
   public isDatesSet : boolean = false;
 
   ngOnInit() {
@@ -152,6 +155,10 @@ export class MeetingRecurrenceComponent implements OnInit {
     this.meetingEndTime = this.dataCaptureService.dataObj.dateAndTime.displayEndTime;
     this.dayOfTheMonth = this.meetingDate.date();
     this.daysOfMonthGenerator();
+    if(!Object.keys(this.dataCaptureService.dataObj.meetingRecurrence.recurrenceInitials).length) {
+      this.dataCaptureService.dataObj.meetingRecurrence.recurrenceInitials['meetingStartTime'] = this.dataCaptureService.dataObj.dateAndTime['meetingStartTime'];
+      this.dataCaptureService.dataObj.meetingRecurrence.recurrenceInitials['meetingEndTime'] = this.dataCaptureService.dataObj.dateAndTime['meetingEndTime'];
+    }
   }
   /**
    * Handler to be called when user clicks on calendar icon
@@ -263,22 +270,54 @@ export class MeetingRecurrenceComponent implements OnInit {
     this.openCalendar = false;
   }
   /**
+   * Handler to be called to set the values selected in view
+   */
+  public updateRecurrenceSelections() {
+    const recurrenceDetails = {};
+    recurrenceDetails['optionSelected'] = this.optionSelected;
+    if(this.optionSelected === this.options[0]) {
+      recurrenceDetails['counter'] = this.weekCounter;
+      const daysOfWeek = [];
+      this.weekDays.filter((element) => {if(element.isSelected) { return element; }}).forEach((element) => { daysOfWeek.push(element.day) });
+      recurrenceDetails['days'] = daysOfWeek;
+    }
+    else if(this.optionSelected === this.options[1]) {
+      recurrenceDetails['counter'] = this.dailyCounter;
+    }
+    else if(this.optionSelected === this.options[2]) {
+      recurrenceDetails['counter'] = this.monthlyCounter;
+      recurrenceDetails['weekDay'] = this.weekOfMonthOptionSelected;
+      if(this.weekOfMonthOptionSelected === this.weeksOfMonth[0]) {
+        recurrenceDetails['dayOfMonth'] = this.dayOfTheMonth;
+      }
+      else {
+        recurrenceDetails['dayOfWeek'] = this.monthWeekDaySelected;
+      }
+    }
+    this.dataCaptureService.dataObj.meetingRecurrence.recurrenceDetails = recurrenceDetails;
+  }
+  /**
    * Handler to be called to generate the recurrence pattern for options
    */
   public generateRecurrencePattern() {
     if(this.optionSelected && this.meetingEnd) {
       if(this.optionSelected === this.options[0] && this.weekCounter && this.checkIfWeekDayIsSelected().length > 0) {
         this.generateWeeklyPattern();
+        this.updateRecurrenceSelections();
+        this.recurrenceSet();
       }
       else if(this.optionSelected === this.options[1] && this.dailyCounter) {
         this.generateDailyPattern();
+        this.updateRecurrenceSelections();
+        this.recurrenceSet();
       }
       else if(this.optionSelected === this.options[2] && this.monthlyCounter && ((this.weekOfMonthOptionSelected && this.monthWeekDaySelected) 
       || (this.weekOfMonthOptionSelected && this.weekOfMonthOptionSelected === this.weeksOfMonth[0] && this.dayOfTheMonth))) {
         this.generateMonthlyPattern();
+        this.updateRecurrenceSelections();
+        this.recurrenceSet();
       }
     }
-    this.recurrenceSet();
   }
   /**
    * Handler to determine the days of week selected for the recurrence
@@ -524,33 +563,147 @@ export class MeetingRecurrenceComponent implements OnInit {
         interval : this.monthlyCounter
       }
     };
+    //Option selected is day of the month
     if(this.weekOfMonthOptionSelected === this.weeksOfMonth[0]) {
       recurrencePattern.pattern['dayOfMonth'] = this.dayOfTheMonth;
     }
+    //Option selected is first, second, third, fourth and last in view
     else {
       recurrencePattern.pattern['index'] = this.weekOfMonthOptionSelected;
-      recurrencePattern.pattern['daysOfWeek'] = this.monthWeekDaySelected;
+      recurrencePattern.pattern['daysOfWeek'] = [this.monthWeekDaySelected];
     }
     this.generateRangePattern(recurrencePattern);
-
+    //Option selected is day of the month
     if(this.weekOfMonthOptionSelected === this.weeksOfMonth[0]) {
-      this.setStartEndTimeForTheMonthDay();
-      if(this.meetingEnd === this.meetingEndOptions[1]) {
-        this.generatePatternDatesForMonthlyDayOnOption(recurrencePattern);
-      }
-      else if(this.meetingEnd === this.meetingEndOptions[2]) {
-        this.generatePatternDatesForMonthlyDayAfterOption(recurrencePattern);
+      this.generatorAndSetterForMonthDayOption(recurrencePattern);
+    }
+    //Option selected is first, second, third and fourth
+    else if(this.weekOfMonthOptionSelected !== this.weeksOfMonth[0] && this.weekOfMonthOptionSelected !== this.weeksOfMonth[this.weeksOfMonth.length - 1]) {
+      this.generatorAndSetterForMonthNumericalWeeks(recurrencePattern);
+    }
+    //Option selected is last from the view
+    else if(this.weekOfMonthOptionSelected === this.weeksOfMonth[this.weeksOfMonth.length - 1]) {
+      this.generatorAndSetterForMonthLastOption(recurrencePattern);
+    }
+  }
+  /**
+   * Handler to generate and set start end dates for the day option for monthly recurrence option
+   * @param recurrencePattern 
+   */
+  public generatorAndSetterForMonthDayOption(recurrencePattern) {
+    this.setStartEndTimeForTheMonthDay();
+    if(this.meetingEnd === this.meetingEndOptions[1]) {
+      this.generatePatternDatesForMonthlyDayOnOption(recurrencePattern);
+    }
+    else if(this.meetingEnd === this.meetingEndOptions[2]) {
+      this.generatePatternDatesForMonthlyDayAfterOption(recurrencePattern);
+    }
+  }
+  /**
+   * Handler to generate and set start end dates for the first, second, third and fourth option for monthly recurrence option
+   * @param recurrencePattern 
+   */
+  public generatorAndSetterForMonthNumericalWeeks(recurrencePattern) {
+    this.setterForStartAndEndDate(this.dayIndex(), this.optionIndex(), 0, this.monthlyCounter, true);
+    if(this.meetingEnd === this.meetingEndOptions[1]) {
+      this.generatePatternDatesForMonthlyWeekDaysOnOption(recurrencePattern, this.dayIndex(), this.optionIndex());
+    }
+    else if(this.meetingEnd === this.meetingEndOptions[2]) {
+      this.generatePatternDatesForMonthlyWeekDaysAfterOption(recurrencePattern, this.dayIndex(), this.optionIndex());
+    }
+  }
+  /**
+   * Handler to generate and set start end dates for the last option for monthly recurrence option
+   * @param recurrencePattern 
+   */
+  public generatorAndSetterForMonthLastOption(recurrencePattern) {
+    this.setterForStartAndEndDateMonthlyLastWeekOption(this.dayIndex(), 0, true);
+    if(this.meetingEnd === this.meetingEndOptions[1]) {
+      this.generatePatternDatesForMonthlyWeekLastOnOption(recurrencePattern);
+    }
+    else if(this.meetingEnd === this.meetingEndOptions[2]) {
+      this.generatePatternDatesForMonthlyWeekLastAfterOption(recurrencePattern);
+    }
+  }
+  /**
+   * Handler to be called to generate pattern dates when week selected is last for monthly recurrence and meeting end On
+   * @param recurrencePattern 
+   */
+  public generatePatternDatesForMonthlyWeekLastOnOption(recurrencePattern) {
+    const dates = [];
+    let index = 1;
+    while(this.setterForStartAndEndDateMonthlyLastWeekOption(this.dayIndex(), index).meetingStartDateTime.isSameOrBefore(this.recurrenceEndDate, 'day')) {
+      this.setStartAndEndDateMonthlyLastWeekOption(this.dayIndex(), index, dates);
+      index = index + 1;
+    }
+    this.updateStateObject(recurrencePattern, dates);
+    this.updateRecurrenceStartEndDate(recurrencePattern, dates);
+  }
+  /**
+   * Handler to be called to generate pattern dates when week selected is last for monthly recurrence and meeting end After
+   * @param recurrencePattern 
+   */
+  public generatePatternDatesForMonthlyWeekLastAfterOption(recurrencePattern) {
+    const dates = [];
+    for(let index = 1; index < this.afterNumberOfOccurences; index++) {
+      this.setStartAndEndDateMonthlyLastWeekOption(this.dayIndex(), index, dates);
+    }
+    this.updateStateObject(recurrencePattern, dates);
+  }
+  /**
+   * Handler to be called to set start and end time for each recurrence
+   * @param dayIndex 
+   * @param iterationIndex 
+   * @param dates 
+   */
+  public setStartAndEndDateMonthlyLastWeekOption(dayIndex, iterationIndex, dates) {
+    const startEndTime = this.setterForStartAndEndDateMonthlyLastWeekOption(dayIndex,iterationIndex);
+    if(startEndTime) {
+      let meetingStartDateTime = startEndTime.meetingStartDateTime;
+      let meetingEndDateTime = startEndTime.meetingEndDateTime;
+        const startDateTimeArray = [];
+        startDateTimeArray.push(meetingStartDateTime);
+        startDateTimeArray.push(meetingEndDateTime);
+        dates.push(startDateTimeArray);
+    }
+  }
+  /**
+   * Handler to be called to generate the meeting start and end date for the last week day of the monthly recurrence pattern
+   * @param dayIndex 
+   * @param iterationIndex 
+   * @param setDates 
+   */
+  public setterForStartAndEndDateMonthlyLastWeekOption(dayIndex, iterationIndex, setDates?: boolean) {
+    let meetingStartDateTime = moment(this.dataCaptureService.dataObj.dateAndTime['meetingStartTime']).endOf('month');
+    let meetingEndDateTime = moment(this.dataCaptureService.dataObj.dateAndTime['meetingEndTime']).endOf('month');
+    const startHours = moment(this.dataCaptureService.dataObj.dateAndTime['meetingStartTime']).hours();
+    const startMinutes = moment(this.dataCaptureService.dataObj.dateAndTime['meetingStartTime']).minutes();
+    const endHours = moment(this.dataCaptureService.dataObj.dateAndTime['meetingEndTime']).hours();
+    const endMinutes = moment(this.dataCaptureService.dataObj.dateAndTime['meetingEndTime']).minutes();
+    meetingStartDateTime = moment(meetingStartDateTime).add(iterationIndex * this.monthlyCounter, 'months').endOf('month');
+    meetingEndDateTime = moment(meetingEndDateTime).add(iterationIndex * this.monthlyCounter, 'months').endOf('month');
+    for(let index = 0; index < 7; index++) {
+      if(dayIndex === moment(meetingStartDateTime).subtract(index, 'days').day()) {
+        meetingStartDateTime = moment(meetingStartDateTime).subtract(index, 'days');
+        meetingEndDateTime = moment(meetingEndDateTime).subtract(index, 'days');
       }
     }
-
-    else if(this.weekOfMonthOptionSelected !== this.weeksOfMonth[0] && this.weekOfMonthOptionSelected !== this.weeksOfMonth[this.weeksOfMonth.length - 1]) {
-      this.setterForStartAndEndDate(this.dayIndex(), this.optionIndex(), 0, this.monthlyCounter, true);
-      if(this.meetingEnd === this.meetingEndOptions[1]) {
-        this.generatePatternDatesForMonthlyWeekDaysOnOption(recurrencePattern, this.dayIndex(), this.optionIndex());
-      }
-      else if(this.meetingEnd === this.meetingEndOptions[2]) {
-        this.generatePatternDatesForMonthlyWeekDaysAfterOption(recurrencePattern, this.dayIndex(), this.optionIndex());
-      }
+    meetingStartDateTime.set({hour : startHours, minute : startMinutes});
+    meetingEndDateTime.set({hour : endHours, minute : endMinutes});
+    if(setDates && meetingStartDateTime.isSameOrAfter(moment(), 'day')) {
+      this.dataCaptureService.dataObj.dateAndTime['meetingStartTime'] = moment(meetingStartDateTime);
+      this.dataCaptureService.dataObj.dateAndTime['meetingEndTime'] = moment(meetingEndDateTime);
+      return;
+    }
+    else if(setDates) {
+      iterationIndex = iterationIndex + 1;
+      this.setterForStartAndEndDateMonthlyLastWeekOption(dayIndex, iterationIndex, true);
+    }
+    else{
+      return {
+        meetingStartDateTime : meetingStartDateTime,
+        meetingEndDateTime : meetingEndDateTime
+      };
     }
   }
   /**
@@ -621,10 +774,16 @@ export class MeetingRecurrenceComponent implements OnInit {
    * @param dayIndex 
    * @param optionIndex 
    * @param iterationIndex 
+   * @param monthlyCounter 
+   * @param setDates 
    */
   public setterForStartAndEndDate(dayIndex, optionIndex, iterationIndex, monthlyCounter,setDates? : boolean) {
     let meetingStartDateTime = moment(this.dataCaptureService.dataObj.dateAndTime['meetingStartTime']);
     let meetingEndDateTime = moment(this.dataCaptureService.dataObj.dateAndTime['meetingEndTime']);
+    const startHours = moment(this.dataCaptureService.dataObj.dateAndTime['meetingStartTime']).hours();
+    const startMinutes = moment(this.dataCaptureService.dataObj.dateAndTime['meetingStartTime']).minutes();
+    const endHours = moment(this.dataCaptureService.dataObj.dateAndTime['meetingEndTime']).hours();
+    const endMinutes = moment(this.dataCaptureService.dataObj.dateAndTime['meetingEndTime']).minutes();
     meetingStartDateTime = moment(meetingStartDateTime).add(iterationIndex * monthlyCounter, 'months').startOf('month');
     meetingEndDateTime = moment(meetingEndDateTime).add(iterationIndex * monthlyCounter, 'months').startOf('month');
     for(let index = 0; index < 7; index++) {
@@ -633,6 +792,8 @@ export class MeetingRecurrenceComponent implements OnInit {
         meetingEndDateTime = moment(meetingEndDateTime).date(meetingEndDateTime.date() + index + ((optionIndex - 1) * 7));
       }
     }
+    meetingStartDateTime.set({hour : startHours, minute : startMinutes});
+    meetingEndDateTime.set({hour : endHours, minute : endMinutes});
     if(setDates && meetingStartDateTime.isSameOrAfter(moment(), 'day')) {
       this.dataCaptureService.dataObj.dateAndTime['meetingStartTime'] = moment(meetingStartDateTime);
       this.dataCaptureService.dataObj.dateAndTime['meetingEndTime'] = moment(meetingEndDateTime);
@@ -654,11 +815,17 @@ export class MeetingRecurrenceComponent implements OnInit {
    */
   public setStartEndTimeForTheMonthDay() {
     let startTimeOfMeeting = moment(this.dataCaptureService.dataObj.dateAndTime['meetingStartTime']).date(this.dayOfTheMonth);
+    const startHours = moment(this.dataCaptureService.dataObj.dateAndTime['meetingStartTime']).hours();
+    const startMinutes = moment(this.dataCaptureService.dataObj.dateAndTime['meetingStartTime']).minutes();
+    const endHours = moment(this.dataCaptureService.dataObj.dateAndTime['meetingEndTime']).hours();
+    const endMinutes = moment(this.dataCaptureService.dataObj.dateAndTime['meetingEndTime']).minutes();
     if(startTimeOfMeeting.month() !== moment(this.dataCaptureService.dataObj.dateAndTime['meetingStartTime']).month()) {
       startTimeOfMeeting = moment(startTimeOfMeeting).subtract(1 , 'month').endOf('month');
     }
     this.dataCaptureService.dataObj.dateAndTime['meetingStartTime'] = moment(this.dataCaptureService.dataObj.dateAndTime['meetingStartTime']).date(startTimeOfMeeting.date());
     this.dataCaptureService.dataObj.dateAndTime['meetingEndTime'] = moment(this.dataCaptureService.dataObj.dateAndTime['meetingEndTime']).date(startTimeOfMeeting.date());
+    this.dataCaptureService.dataObj.dateAndTime['meetingStartTime'].set({hour : startHours, minute: startMinutes});
+    this.dataCaptureService.dataObj.dateAndTime['meetingEndTime'].set({hour : endHours, minute : endMinutes});
   }
   /**
    * Handler to be called to generate dates for monthly day and meeting end On option
