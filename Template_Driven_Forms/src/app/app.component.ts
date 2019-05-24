@@ -27,17 +27,18 @@ export class AppComponent {
 
 
 -------------------------------------------------------------------------------------------------------------------------------------------
-import { Component, OnInit, Output, EventEmitter } from '@angular/core';
+import { Component, OnInit, Output, EventEmitter, Input, ViewChild, AfterViewInit } from '@angular/core';
 import { ScheduleCaptureService } from '../../services/schedule-capture/schedule-capture.service';
 import { SchedulerConstants } from '../../constants/scheduler-constants';
 import * as moment from 'moment';
+import { RecurrenceDetailsComponent } from '../recurrence-details/recurrence-details.component';
 
 @Component({
   selector: 'app-meeting-recurrence',
   templateUrl: './meeting-recurrence.component.html',
   styleUrls: ['./meeting-recurrence.component.scss']
 })
-export class MeetingRecurrenceComponent implements OnInit {
+export class MeetingRecurrenceComponent implements OnInit, AfterViewInit {
 
   constructor(private dataCaptureService : ScheduleCaptureService) { }
   /**
@@ -149,7 +150,21 @@ export class MeetingRecurrenceComponent implements OnInit {
    */
   public isDatesSet : boolean = false;
 
+   /**
+    * Captures the index of the current pop up screen
+    */
+   @Input() currentPopUpIndex: number;
+
+   public recurenceCustomizeView : boolean = false;
+
+   public onRemoveRecurrence : EventEmitter<any> = new EventEmitter<any>();
+
+   @Output() closeRecurence : EventEmitter<any> = new EventEmitter<any>();
+
   ngOnInit() {
+    if(this.currentPopUpIndex === 6){
+      this.recurenceCustomizeView = true;
+    }
     this.meetingDate = moment(this.dataCaptureService.dataObj.dateAndTime.date);
     this.meetingStartTime = this.dataCaptureService.dataObj.dateAndTime.displayStartTime;
     this.meetingEndTime = this.dataCaptureService.dataObj.dateAndTime.displayEndTime;
@@ -160,6 +175,7 @@ export class MeetingRecurrenceComponent implements OnInit {
       this.dataCaptureService.dataObj.meetingRecurrence.recurrenceInitials['meetingEndTime'] = this.dataCaptureService.dataObj.dateAndTime['meetingEndTime'];
     }
   }
+  ngAfterViewInit(){}
   /**
    * Handler to be called when user clicks on calendar icon
    */
@@ -198,7 +214,9 @@ export class MeetingRecurrenceComponent implements OnInit {
    * Handler to be called on click of increment for Every options for the weekly option selected
    */
   public incrementEveryWeekCounter() {
-    this.weekCounter = this.weekCounter + 1;
+    if(this.weekCounter < 52) {
+      this.weekCounter = this.weekCounter + 1;
+    }
   }
   /**
    * Handler to be called on click of decrement for Every options for the daily option selected
@@ -212,7 +230,7 @@ export class MeetingRecurrenceComponent implements OnInit {
    * Handler to be called on click of increment for Every options for the daily option selected
    */
   public incrementEveryDayCounter() {
-    if(this.dailyCounter < 365) {
+    if(this.dailyCounter < 366) {
       this.dailyCounter = this.dailyCounter + 1;
     }
   }
@@ -260,6 +278,19 @@ export class MeetingRecurrenceComponent implements OnInit {
    */
   public recurrenceSet() : void {
     this.onRecurrenceSet.emit();
+  }
+   /**
+   * Handler to be called when user clicks on remove link in add more details screen 
+   */
+  public removeRecurrenceAddMoreDetails() : void {
+    this.dataCaptureService.dataObj.meetingRecurrence.removeRecurrence = true;
+    this.dataCaptureService.dataObj.meetingRecurrence.isRecurrenceSet = false;
+    if (Object.keys(this.dataCaptureService.dataObj.meetingRecurrence.recurrenceInitials).length) {
+      this.dataCaptureService.dataObj.dateAndTime['date'] = this.dataCaptureService.dataObj.meetingRecurrence.recurrenceInitials['meetingStartTime'];
+      this.dataCaptureService.dataObj.dateAndTime['meetingStartTime'] = this.dataCaptureService.dataObj.meetingRecurrence.recurrenceInitials['meetingStartTime'];
+      this.dataCaptureService.dataObj.dateAndTime['meetingEndTime'] = this.dataCaptureService.dataObj.meetingRecurrence.recurrenceInitials['meetingEndTime'];
+    }
+    this.closeRecurence.emit();
   }
   /**
    * Handler to capture 
@@ -434,6 +465,9 @@ export class MeetingRecurrenceComponent implements OnInit {
     if(this.meetingEnd !== this.meetingEndOptions[0]) {
       this.generateWeeklyPatternDates(recurrencePattern);
     }
+    else {
+      this.setMeetingStartEndTime();
+    }
   }
   /**
    * Handler to be called to generate dates array for On and After meeting end option when option selected is weekly
@@ -517,10 +551,10 @@ export class MeetingRecurrenceComponent implements OnInit {
    * @param filteredDayIndex 
    */
   public setStartAndEndTimeForEachWeekDay(filteredWeekDays, filteredDayIndex) {
-    let startDateTime;
-    let endDateTime;
+    let startDateTime = null;
+    let endDateTime = null;
     const daysDifference = filteredWeekDays[filteredDayIndex].dayIndex - moment(this.dataCaptureService.dataObj.dateAndTime['meetingStartTime']).day();
-    if(daysDifference) {
+    if(daysDifference > 0) {
       startDateTime = moment(this.dataCaptureService.dataObj.dateAndTime['meetingStartTime']).add(daysDifference, 'days');
       endDateTime = moment(this.dataCaptureService.dataObj.dateAndTime['meetingEndTime']).add(daysDifference, 'days');
     }
@@ -569,7 +603,7 @@ export class MeetingRecurrenceComponent implements OnInit {
     }
     //Option selected is first, second, third, fourth and last in view
     else {
-      recurrencePattern.pattern['index'] = this.weekOfMonthOptionSelected;
+      recurrencePattern.pattern['index'] = this.weekOfMonthOptionSelected.toLowerCase();
       recurrencePattern.pattern['daysOfWeek'] = [this.monthWeekDaySelected];
     }
     this.generateRangePattern(recurrencePattern);
@@ -840,6 +874,12 @@ export class MeetingRecurrenceComponent implements OnInit {
       const startDateTimeArray = [];
       startDateTime = moment(this.dataCaptureService.dataObj.dateAndTime['meetingStartTime']).add(index * this.monthlyCounter, 'months');
       endDateTime = moment(this.dataCaptureService.dataObj.dateAndTime['meetingEndTime']).add(index * this.monthlyCounter, 'months');
+      if(moment(startDateTime).endOf('month').date() >= this.dayOfTheMonth) {
+        startDateTime.date(this.dayOfTheMonth);
+      }
+      if(moment(endDateTime).endOf('month').date() >= this.dayOfTheMonth) {
+        endDateTime.date(this.dayOfTheMonth);
+      }
       startDateTimeArray.push(startDateTime);
       startDateTimeArray.push(endDateTime);
       dates.push(startDateTimeArray);
@@ -860,6 +900,12 @@ export class MeetingRecurrenceComponent implements OnInit {
       const startDateTimeArray = [];
       startDateTime = moment(this.dataCaptureService.dataObj.dateAndTime['meetingStartTime']).add(index * this.monthlyCounter, 'months');
       endDateTime = moment(this.dataCaptureService.dataObj.dateAndTime['meetingEndTime']).add(index * this.monthlyCounter, 'months');
+      if(moment(startDateTime).endOf('month').date() >= this.dayOfTheMonth) {
+        startDateTime.date(this.dayOfTheMonth);
+      }
+      if(moment(endDateTime).endOf('month').date() >= this.dayOfTheMonth) {
+        endDateTime.date(this.dayOfTheMonth);
+      }
       startDateTimeArray.push(startDateTime);
       startDateTimeArray.push(endDateTime);
       dates.push(startDateTimeArray);
