@@ -1,0 +1,1101 @@
+import { Component, OnInit, ChangeDetectorRef, Output, EventEmitter, Input, OnChanges, OnDestroy, AfterViewChecked, ViewChild, ElementRef } from '@angular/core';
+import { GetAllOneDayMeetingsService } from '../../services/get-all-one-day-meetings/get-all-one-day-meetings.service';
+import * as moment from 'moment';
+import { Subscription, empty } from 'rxjs';
+import { ScheduleCaptureService } from '../../services/schedule-capture/schedule-capture.service';
+import { DateTimeDuration } from '../../models/date-time-duration.model';
+import { GetDayDeadlinesService } from '../../services/get-day-deadlines/get-day-deadlines.service';
+import { GetAllCanclledMeetingsService } from '../../services/get-all-canclled-meetings/get-all-canclled-meetings.service';
+import { SchedulerConstants } from '../../constants/scheduler-constants';
+
+@Component({
+  selector: 'app-one-day-view',
+  templateUrl: './one-day-view.component.html',
+  styleUrls: ['./one-day-view.component.scss']
+})
+
+export class OneDayViewComponent implements OnInit, OnChanges, AfterViewChecked, OnDestroy {
+
+  constructor(private getOneDayMeeting: GetAllOneDayMeetingsService, private componentDetectorRef: ChangeDetectorRef, private dataCaptureService: ScheduleCaptureService,
+    private getDeadlines: GetDayDeadlinesService, public canceledMeeting: GetAllCanclledMeetingsService) { }
+    public moment = moment;
+  /**
+   * Captures date from horizontal bar
+   */
+  public selectedDateData;
+
+  public saveTaskObject;
+  /**
+   * Captures date selected from calendar
+   */
+  @Input() userSelectedDate;
+  /**
+   * Captures task and meeting display status from calendar
+   */
+  @Input() openTaskandMeetings;
+  /**
+   * Captures 24 slots of day
+   */
+  public allDaySlots = [];
+
+  public emptySlots = [];
+  /**
+   * Captures all meetings in day
+   */
+  public isMeetingsDisplayed = false;
+  /**
+   * Event notifier of selected meeting
+   */
+  @Output() showMeetingDetails: EventEmitter<any> = new EventEmitter<any>();
+  /**
+   * Event emitter to send selected date from the horizontal bar
+   */
+  @Output() emitSelectedDate: EventEmitter<any> = new EventEmitter<any>();
+  /**
+   * Event emitter to emit the EA slots for the tagging component
+   */
+  @Output() eaSlotsForDay: EventEmitter<Object> = new EventEmitter<Object>();
+
+  /**
+   * Captures all meetings fetched from the backend
+   */
+  public allMeetings = [];
+  /**
+     * Captures multiday meeting greater than 24 hrs  fetched from the backend
+     */
+  public multiDayMeetings = [];
+  /**
+   * Captures calendar view type
+   */
+  public viewType = SchedulerConstants.VIEW_TYPE;
+  /**
+   * Captures logged on user Id
+   */
+  @Input() loggedInUserId;
+  /**
+   * Captures the susbscription of the XHR call
+   */
+  public subscription: Subscription;/**
+  /**
+   * Captures conflict meeting status
+   */
+  public isMeetingConflict: boolean = false;
+  /**
+   * Event emitter to send Selected EA slot data
+   */
+  @Output() emitSelectedEASlotDate: EventEmitter<any> = new EventEmitter<any>();
+  /**
+ * Captures total number of hours for month
+ */
+  public totalMeetingHours: number = 0;
+
+  public availableTimeSlots = [];
+
+  @Output() emptySlotClicked: EventEmitter<any> = new EventEmitter<any>();
+
+  @Output() eaSlotFromCalendarClicked: EventEmitter<any> = new EventEmitter<any>();
+
+  @Output() pinDropped: EventEmitter<any> = new EventEmitter<any>();
+
+  @Output() emitCancelledMeetingData: EventEmitter<any> = new EventEmitter<any>();
+
+  @Input() deepWorkMode: boolean;
+
+  @Input() newPinnedArray: Array<any>;
+
+  @Input() newTaskId: any;
+
+  public propertySetter = 'dateAndTime';
+
+  public emptyMeetingsToShow = [];
+
+  public allEmptySlots = [];
+
+  public isCurrentTime: boolean = false;
+
+  public pinnedTaskArray = [];
+
+  public currentSlot: number;
+
+  public densitySubscription: Subscription;
+
+  public currentDayTaskCount: number = 0;
+
+  public scrollToView = false;
+
+  public highliteMeetingCard = false;
+
+  public clikedMeetingId;
+
+  public clickedMeetingData;
+
+  public clickedMeetingObject = false;
+
+  public reccurenceMeetingStartTime = '';
+
+  public meetingSearched;
+  /**
+  * Captures meeting tab is open
+  */
+  @Input() meetingTabIsOpened;
+  /**
+   * Captures previous state of deepwork
+   */
+  public isChangeInDeepWorkMode : boolean = false;
+
+  @Input() modalResponse;
+
+  /**
+  * searched meeting to display in right hand panel
+  */
+ @Output() searchedMeetingDetails: EventEmitter<any> = new EventEmitter<any>();
+
+
+  @ViewChild('currentTimeIndicator') scollDiv: ElementRef;
+
+  ngOnInit() { }
+
+  ngOnChanges() {
+    if(this.deepWorkMode !== undefined && this.deepWorkMode !== this.isChangeInDeepWorkMode) {
+      this.isChangeInDeepWorkMode = this.deepWorkMode;
+      const startDateTime = moment(this.selectedDateData.date).startOf('day').toISOString();
+      const endDateTime = moment(this.selectedDateData.date).endOf('day').toISOString();
+      this.fetchOneDayMeetings(startDateTime, endDateTime);
+    }
+  }
+
+  ngAfterViewChecked() {
+    if (this.scollDiv && this.selectedDateData.date.isSame(moment(), 'day')) {
+      if (!this.scrollToView) {
+        this.scollDiv.nativeElement.scrollIntoView();
+        this.scrollToView = true;
+      }
+    } else {
+      this.scrollToView = false;
+    }
+  }
+
+  ngOnDestroy() {
+    this.subscription && this.subscription.unsubscribe();
+  }
+
+  public allowDrop(ev) {
+    ev.preventDefault();
+  }
+
+  public displaySearchedMeeting(data) {
+    this.meetingSearched = data;
+  }
+
+
+  public drop(ev, emptySlot) {
+    ev.preventDefault();
+    this.eaSlotClicked(emptySlot);
+    const pinTheTask = {
+      'status': 'pinned',
+      'task': this.newTaskId
+    };
+    this.pinDropped.emit(pinTheTask);
+  }
+
+  /**
+   * Handler to capture data passed from horizontal bar
+   * @param eventData
+   */
+  public horizontalBarData(eventData: moment.Moment): void {
+    this.selectedDateData = eventData;
+    this.emitSelectedDate.emit({ selectedDate: this.selectedDateData });
+    const startDateTime = moment(this.selectedDateData.date).startOf('day').toISOString();
+    const endDateTime = moment(this.selectedDateData.date).endOf('day').toISOString();
+    const deadLineDate = this.selectedDateData.date.isSame(moment(), 'day') ? moment() : moment(this.selectedDateData.date);
+    this.getDeadlines.getDayDeadlines(deadLineDate.toISOString(), this.loggedInUserId).subscribe((tasks) => {
+      this.pinnedTaskArray = [];
+      this.currentDayTaskCount = 0;
+      for (let index = 0; index < tasks.length; index++) {
+        if (moment(moment(tasks[index].taskData['deadline_date']).format('YYYY-MM-DD')).diff(moment(moment(this.selectedDateData.date).format('YYYY-MM-DD')), 'day') === 0) {
+          this.currentDayTaskCount++;
+        }
+        if (tasks[index].taskData.isPinnedScheduler) {
+          this.pinnedTaskArray.push(tasks[index]);
+        }
+      }
+      this.fetchOneDayMeetings(startDateTime, endDateTime);
+      this.calculateHeight();
+    });
+    this.highliteMeetingCard = false;
+    this.componentDetectorRef.detectChanges();
+  }
+  /**
+  * Handler to generate all slots of the day with half hour gap in each
+  * TODO - Update object to fire schedule event if there is not meeting in the slot i.e. a meeting is not spanning across/starting/ending in the slot
+  */
+  public generateSlots(): void {
+    // Setting the default state of the slots array
+    this.sortMeetings(this.allMeetings);
+    this.findEachMeetingsConflictingMeetings(this.allMeetings);
+    this.allDaySlots = [];
+    let slot = 0;
+    const period = 0.5;
+    for (let index = 0; index < 48; index++) {
+      const slotObj = {};
+      slot = period * index;
+      slotObj['displayTime'] = this.formatttedSlot(slot);
+      if (slotObj['displayTime'].slice(0, 2) === '00') {
+        slotObj['refinedDisplayTime'] = '12' + slotObj['displayTime'].slice(2, 8);
+      }
+      slotObj['displayEndTime'] = this.formatttedSlot(slot + 0.5);
+      slotObj['meetings'] = this.isMeetingScheduledInSlot(slot);
+      slotObj['isMeetingSpannedAcrossSlot'] = this.isMeetingSpannedAcrossSlot(slot);
+      slotObj['meetingstyles'] = slotObj['meetings'].length ? this.setSlotStyles(slotObj['meetings'], true, slotObj) : [];
+      slotObj['conflictingMeetings'] = this.determineConflictFactor(slotObj, slot, index, this.allMeetings);
+      this.allDaySlots.push(slotObj);
+    }
+    this.checkSlotStyleUpdateRequired(this.allDaySlots, this.allMeetings);
+    if (moment(this.selectedDateData.date).isSameOrAfter(moment(), 'day')) {
+      this.getEmptyMeetingsInSlots();
+    } else {
+      this.allEmptySlots = [];
+      this.eaSlotsForDay.emit({ emptySlots: this.allEmptySlots, date: this.selectedDateData.date });
+    }
+
+    if (this.meetingSearched) {
+      this.clikedMeetingId = this.meetingSearched['meetingId'];
+      this.clickedMeetingData = this.meetingSearched;
+       this.highliteMeetingCard = true;
+       const startDateTime = moment(this.meetingSearched.meetingData.meetingData.meeting_start_time);
+      const endDateTime = moment(this.meetingSearched.meetingData.meetingData.meeting_end_time);
+       const meetingData = {
+         'startTime': this.formatttedSlot(startDateTime.hours() + Number((startDateTime.minutes() / 60))),
+         'endTime': this.formatttedSlot(endDateTime.hours() + Number((endDateTime.minutes() / 60))),
+         'meetingData': this.meetingSearched['meetingData']
+       };
+       this.showMeetingDetails.emit({
+         meetingId: this.meetingSearched.meetingId, conflict: false, selectedDate: this.selectedDateData.date,
+         isCancelledMeeting: false, pinnedTaskArray: this.pinnedTaskArray, meetingDetails: meetingData
+       });
+    }
+
+  }
+
+  public generateEmptySlots(): void {
+    this.allEmptySlots = [];
+    let emptySlot = 0;
+    let count = 0;
+    const period = 0.5;
+    for (let index = 0; index < this.allDaySlots.length; index++) {
+      const emptySlotObj = {};
+      emptySlot = period * index;
+      emptySlotObj['meetingDate'] = moment(this.selectedDateData.date);
+      emptySlotObj['displayTime'] = this.formatttedSlot(emptySlot);
+      emptySlotObj['displayEndTime'] = this.formatttedSlot(emptySlot + 0.5);
+      emptySlotObj['emptyMeetings'] = this.isEmptyMeetingInSlot(emptySlot);
+      emptySlotObj['emptymeetingstyles'] = emptySlotObj['emptyMeetings'].length ? this.setSlotStyles(emptySlotObj['emptyMeetings']) : [];
+      emptySlotObj['pinnedTasks'] = this.fetchPinnedTasks(emptySlotObj);
+      if (emptySlotObj['emptyMeetings'].length && count === 0) {
+        if (this.dataCaptureService.dataObj.selectedEASlot.selectedEASlot) {
+          if (Object.keys(this.dataCaptureService.dataObj.selectedEASlot.selectedEASlot).length &&
+           moment(this.dataCaptureService.dataObj.selectedEASlot.selectedEASlot['meetingDate']).isSame(this.selectedDateData.date, 'day')) {
+            this.currentSlot = this.dataCaptureService.dataObj.selectedEASlot.selectedEASlot['emptyMeetings'][0].startTime;
+          } else {
+            this.currentSlot = emptySlotObj['emptyMeetings'][0].startTime;
+          }
+        } else {
+          this.currentSlot = emptySlotObj['emptyMeetings'][0].startTime;
+        }
+        count++;
+      }
+      this.allEmptySlots.push(emptySlotObj);
+    }
+    this.eaSlotsForDay.emit({ emptySlots: this.allEmptySlots, date: this.selectedDateData.date });
+  }
+  /**
+   * Handler to be called to check if task is pinned
+   * @param emptySlotObj
+   */
+  public fetchPinnedTasks(emptySlotObj: Object) {
+    if (this.pinnedTaskArray.length && emptySlotObj['emptyMeetings'].length) {
+      const tasksInSlot = [];
+      for (let index = 0; index < this.pinnedTaskArray.length; index++) {
+        if (moment(this.pinnedTaskArray[index]['taskData']['pinned_start_time']).isSameOrBefore(moment(emptySlotObj['emptyMeetings'][0]['meetingData']['meeting_start_time']).set({ 'second': 0, 'millisecond': 0 }))
+          && moment(this.pinnedTaskArray[index]['taskData']['pinned_end_time']).set({ 'second': 0, 'millisecond': 0 }).isSame(moment(emptySlotObj['emptyMeetings'][0]['meetingData']['meeting_end_time']).set({ 'second': 0, 'millisecond': 0 }))) {
+          tasksInSlot.push(this.pinnedTaskArray[index]);
+        }
+      }
+      return tasksInSlot;
+    } else {
+      return [];
+    }
+  }
+  /**
+   * Handler to be called to detrmine the number of conflicts
+   * Applied check for the deepwork mode and meeting status as deepwork, need to be removed once deepwork and meeting are not dependent on mode selection
+   * @param slotObj 
+   * @param startHours 
+   * @param index 
+   * @param allMeetings 
+   */
+  public determineConflictFactor(slotObj, startHours, index, allMeetings) {
+    let startTime = startHours.toString().indexOf('.') > 0 ? moment(this.selectedDateData.date).startOf('day').set({hours : parseInt(startHours), minutes : 30}) : moment(this.selectedDateData.date).startOf('day').set({hours : parseInt(startHours)});
+    let endTime = (startHours + 0.5).toString().indexOf('.') > 0 ? moment(this.selectedDateData.date).startOf('day').set({hours : parseInt(startHours + 0.5), minutes : 30}) : moment(this.selectedDateData.date).startOf('day').set({hours : parseInt(startHours + 0.5)});
+    if(allMeetings.length && allMeetings.length > 1) {
+      let meetings = [];
+      for(let index = 0; index < allMeetings.length; index++) {
+        if(!this.deepWorkMode && allMeetings[index]['meetingData']['meeting_type'] === 'deepwork') {
+          continue;
+        }
+        else {
+          if(moment(allMeetings[index]['meetingData']['meeting_start_time']).set({seconds : 0, milliseconds : 0}).isSame(moment(startTime)) || moment(allMeetings[index]['meetingData']['meeting_end_time']).set({seconds : 0, milliseconds : 0}).isSame(moment(endTime))
+          || (moment(allMeetings[index]['meetingData']['meeting_start_time']).set({seconds : 0, milliseconds : 0}).isBefore(moment(startTime)) && moment(allMeetings[index]['meetingData']['meeting_end_time']).set({seconds : 0, milliseconds : 0}).isAfter(moment(startTime)))
+          || (moment(allMeetings[index]['meetingData']['meeting_start_time']).set({seconds : 0, milliseconds : 0}).isAfter(moment(startTime)) && moment(allMeetings[index]['meetingData']['meeting_start_time']).set({seconds : 0, milliseconds : 0}).isBefore(moment(endTime)))) {
+            meetings.push(allMeetings[index]);
+          }
+        }
+      }
+      return meetings;
+    }
+  }
+  /**
+   * Handler to be called to check if update in styles is required
+   */
+  public checkSlotStyleUpdateRequired(allDaySlots, allMeetings) {
+    if(allMeetings.length > 1) {
+      for(let index = 0; index < allDaySlots.length; index++) {
+        if(allDaySlots[index]['meetings'].length && allDaySlots[index]['conflictingMeetings'].length) {
+          this.setWidthForEachConflictingMeeting(allDaySlots[index]);
+        }
+      }
+      for(let index = 0; index < allDaySlots.length; index++) {
+        this.definePositionIndex(allDaySlots[index]);
+      }
+    }
+  }
+  /**
+   * Handler to be called to get all the conflicting meetings for each meeting
+   * Applied check for the deepwork mode and meeting status as deepwork, need to be removed once deepwork and meeting are not dependent on mode selection
+   */
+  public findEachMeetingsConflictingMeetings(allMeetings) {
+    for(let index = 0; index < allMeetings.length; index++) {
+      for(let key = 0; key < allMeetings.length; key++) {
+        if(!this.deepWorkMode && (allMeetings[index]['meetingData']['meeting_type'] === 'deepwork' || allMeetings[key]['meetingData']['meeting_type'] === 'deepwork')) {
+          continue;
+        }
+        else {
+          if(moment(allMeetings[index]['meetingData']['meeting_start_time']).isSame(moment(allMeetings[key]['meetingData']['meeting_start_time'])) 
+          || moment(allMeetings[index]['meetingData']['meeting_end_time']).isSame(moment(allMeetings[key]['meetingData']['meeting_end_time']))
+          || (moment(allMeetings[index]['meetingData']['meeting_start_time']).isBefore(moment(allMeetings[key]['meetingData']['meeting_start_time'])) && moment(allMeetings[index]['meetingData']['meeting_end_time']).isAfter(moment(allMeetings[key]['meetingData']['meeting_start_time'])))
+          || (moment(allMeetings[key]['meetingData']['meeting_start_time']).isBefore(moment(allMeetings[index]['meetingData']['meeting_start_time'])) && moment(allMeetings[key]['meetingData']['meeting_end_time']).isAfter(moment(allMeetings[index]['meetingData']['meeting_start_time'])))) {
+            if(!allMeetings[index]['conflictingWith']) {
+              allMeetings[index]['conflictingWith'] = [];
+            }
+            allMeetings[index]['conflictingWith'].push(allMeetings[key]);
+          }
+        }
+      }
+    }
+  }
+  /**
+   * Handler to be called to set width for each conflicting instance
+   * @param slotObj 
+   */
+  public setWidthForEachConflictingMeeting(slotObj) {
+    let width;
+    for(let index = 0; index < slotObj['conflictingMeetings'].length; index++) {
+      if(slotObj['conflictingMeetings'][index]['conflictingWith'].length) {
+        for(let key = 0; key < slotObj['conflictingMeetings'][index]['conflictingWith'].length; key++) {
+          if(slotObj['conflictingMeetings'][index]['conflictingWith'][key]['meetingStyles'] && slotObj['conflictingMeetings'][index]['conflictingWith'][key]['meetingStyles']['width']) {
+            width = Number(slotObj['conflictingMeetings'][index]['conflictingWith'][key]['meetingStyles']['width'].split('').splice(0,slotObj['conflictingMeetings'][index]['conflictingWith'][key]['meetingStyles']['width'].length - 1).join(''));
+          }
+          if(slotObj['conflictingMeetings'][index]['conflictingWith'][key]['meetingStyles'] && width > 100/slotObj['conflictingMeetings'].length) {
+            slotObj['conflictingMeetings'][index]['conflictingWith'][key]['meetingStyles']['width'] = `${100/slotObj['conflictingMeetings'].length}%`;
+          }
+        }
+      }
+    }
+  }
+  /**
+   * Handler to define position index for each meeting depending upon its postion in the conflicts collection
+   * @param slotObj 
+   */
+  public definePositionIndex(slotObj) {
+    if(slotObj['meetings'].length === slotObj['conflictingMeetings'].length) {
+      this.definePositionIndexSequentially(slotObj);
+    }
+    else {
+      this.definePositionIndexShuffled(slotObj);
+    }
+  }
+  /**
+   * Handler to be called to define position index in sequential manner
+   * @param slotObj 
+   */
+  public definePositionIndexSequentially(slotObj) {
+    for(let index = 0; index < slotObj['meetings'].length; index++) {
+      if(!slotObj['meetings'][index]['positionIndex']) {
+        slotObj['meetings'][index]['positionIndex'] = index;
+      }
+    }
+  }
+  /**
+   * Handler to be called to define position index which are not occupied to the meetings collection objects
+   * @param slotObj 
+   */
+  public definePositionIndexShuffled(slotObj) {
+    const occupiedPositions = [];
+    for(let index = 0; index < slotObj['conflictingMeetings'].length; index++) {
+      if(slotObj['conflictingMeetings'][index]['positionIndex'] || slotObj['conflictingMeetings'][index]['positionIndex'] === 0) {
+        occupiedPositions.push(slotObj['conflictingMeetings'][index]['positionIndex']);
+      }
+    }
+    this.defineLeftUpIndices(slotObj, occupiedPositions);
+    this.setCalculatedLeftMargins(slotObj);
+  }
+  /**
+   * Handler to be called to determine the left up position indices
+   * @param slotObj 
+   * @param occupiedPositions 
+   */
+  public defineLeftUpIndices(slotObj, occupiedPositions) {
+    const leftUpPositionIndices = [];
+    for(let index = 0; index < slotObj['conflictingMeetings'].length; index++) {
+      if(occupiedPositions.indexOf(index) < 0) {
+        leftUpPositionIndices.push(index);
+      }
+    }
+    this.setLeftUpIndicesOnMeetingObject(slotObj, leftUpPositionIndices);
+  }
+  /**
+   * Handler to be called to set left up indices on the meetings object
+   * @param slotObj 
+   * @param leftUpPositionIndices 
+   */
+  public setLeftUpIndicesOnMeetingObject(slotObj, leftUpPositionIndices) {
+    for(let index = 0; index < slotObj['meetings'].length; index++) {
+      slotObj['meetings'][index]['positionIndex'] = leftUpPositionIndices[index];
+    }
+  }
+  /**
+   * Handler to be called to set left margins depending upon the position in meetings collection
+   * @param slotObj 
+   */
+  public setCalculatedLeftMargins(slotObj) {
+    for(let index = 0; index < slotObj['meetings'].length; index++) {
+      if(index === 0) {
+        slotObj['meetings'][index]['meetingStyles']['marginLeft'] = `${slotObj['meetings'][index]['positionIndex'] * Number(slotObj['meetings'][index]['meetingStyles']['width'].slice(0, slotObj['meetings'][index]['meetingStyles']['width'].length - 1))}%`;
+      }
+      else {
+        if((slotObj['meetings'][index]['positionIndex'] - slotObj['meetings'][index - 1]['positionIndex']) > 1) {
+          const positionDiff = (slotObj['meetings'][index]['positionIndex'] - slotObj['meetings'][index - 1]['positionIndex']) - 1;
+          slotObj['meetings'][index]['meetingStyles']['marginLeft'] = `${positionDiff * Number(slotObj['meetings'][index]['meetingStyles']['width'].slice(0, slotObj['meetings'][index]['meetingStyles']['width'].length - 1))}%`;
+        }
+      }
+    }
+  }
+  /**
+   * Handler to be called to check whether reccurence icon should be rendered in view
+   * @param styleProp 
+   */
+  public isReccurenceIconRendered(styleProp) {
+    if(parseFloat(styleProp.slice(0,styleProp.length - 1)) >= 10) {
+      return true;
+    }
+    else {
+      return false;
+    }
+  }
+  /**
+   * Handler to be called when task is pinned
+   * @param taskPinned
+   */
+  public updateEmptySlotWithTask(taskPinned: Object) {
+    const eaSlotSelected = moment(this.dataCaptureService.dataObj.selectedEASlot.selectedEASlot['emptyMeetings'][0]['meetingData']['meeting_start_time']).set({ 'second': 0, 'millisecond': 0 });
+    for (let index = 0; index < this.allEmptySlots.length; index++) {
+      if (this.allEmptySlots[index]['emptyMeetings'].length) {
+        if (eaSlotSelected.isSame(moment(this.allEmptySlots[index]['emptyMeetings'][0]['meetingData']['meeting_start_time']).set({ 'second': 0, 'millisecond': 0 }))
+          && taskPinned['taskData'].isPinnedScheduler) {
+          this.allEmptySlots[index]['pinnedTasks'].push(taskPinned);
+        } else {
+          if (this.allEmptySlots[index]['pinnedTasks'].length) {
+            for (let key = 0; key < this.allEmptySlots[index]['pinnedTasks'].length; key++) {
+              if (taskPinned['taskId'] === this.allEmptySlots[index]['pinnedTasks'][key]['taskId']) {
+                this.allEmptySlots[index]['pinnedTasks'].splice(key, 1);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  public getEmptyMeetingsInSlots() {
+    this.emptyMeetingsToShow = [];
+    const emptySlots = [];
+    let emptySlotAvailable = {};
+    for (let i = 0; i < this.allDaySlots.length; i++) {
+      if (this.allDaySlots[i].isMeetingSpannedAcrossSlot === undefined) {
+        emptySlotAvailable = {
+          'meetingDate': moment(this.selectedDateData.date),
+          'displayTime': this.allDaySlots[i].displayTime,
+          'displayStartTime': this.allDaySlots[i].displayTime,
+          'displayEndTime': this.allDaySlots[i].displayEndTime
+        };
+        emptySlots.push(emptySlotAvailable);
+      }
+    }
+
+    let emptyMeeting = {};
+    let oneCompleteSlot = [];
+    const allSlots = [];
+    for (let index = 0; index < emptySlots.length; index++) {
+      oneCompleteSlot.push(emptySlots[index]);
+
+      const hour = moment().hour();
+      const minute = moment().minute();
+      const currentTime = minute < 30 ? this.formatttedSlot(hour) : this.formatttedSlot(hour + 0.5);
+
+      if (moment(moment(this.selectedDateData.date).format('YYYY-MM-DD')).diff(moment(moment().format('YYYY-MM-DD')), 'day') === 0) {
+        if (index !== emptySlots.length - 1 && ((emptySlots[index + 1].displayStartTime === currentTime)
+          || !(emptySlots[index + 1].displayStartTime === emptySlots[index].displayEndTime))) {
+          allSlots.push(oneCompleteSlot);
+          oneCompleteSlot = [];
+        }
+      } else if (index !== emptySlots.length - 1 && !(emptySlots[index + 1].displayStartTime === emptySlots[index].displayEndTime)) {
+        allSlots.push(oneCompleteSlot);
+        oneCompleteSlot = [];
+      }
+      if (index === emptySlots.length - 1 && oneCompleteSlot.length > 0) {
+        allSlots.push(oneCompleteSlot);
+        oneCompleteSlot = [];
+      }
+    }
+    for (let count = 0; count < allSlots.length; count++) {
+      const lastCount = allSlots[count].length - 1;
+      if (this.isLegitimateTime(allSlots[count][0])) {
+        emptyMeeting = {
+          'meetingData': {
+            'meeting_start_time': this.convertDisplayTimeToDate(allSlots[count][0].displayStartTime),
+            'meeting_end_time': moment(this.selectedDateData.date).endOf('day') < moment(this.convertDisplayTimeToDate(allSlots[count][lastCount].displayEndTime)) ? moment(this.selectedDateData.date).endOf('day') : this.convertDisplayTimeToDate(allSlots[count][lastCount].displayEndTime),
+          }
+        };
+
+        this.emptyMeetingsToShow.push(emptyMeeting);
+      }
+    }
+    return this.emptyMeetingsToShow;
+  }
+
+  public convertDisplayTimeToDate(displayTime) {
+    const createHours = displayTime.indexOf('PM') >= 0 ? Number(displayTime.split(':')[0]) + 12 : Number(displayTime.split(':')[0]);
+    const createDate = moment(this.selectedDateData.date).set({ 'hour': createHours, minute: Number(displayTime.split(':')[1].split(' ')[0]) });
+    return moment(createDate).toISOString();
+  }
+  /**
+  * Handler to set styles for each object depending upon the timing of the meeting
+  * TODO - Update the styling when meeting spans across multiple days
+  * @param meetings
+  */
+  public setSlotStyles(meetings, calcMeetingWidthFlag?: boolean, slotObj?): Array<any> {
+    let allSlotStyles = [];
+    let dataObj;
+    for (let index = 0; index < meetings.length; index++) {
+      if (calcMeetingWidthFlag) {
+        dataObj = this.meetingColorCoding(meetings[index]);
+      } else {
+        dataObj = {};
+      }
+      if (meetings[index]['endTimeNumeric'] - meetings[index]['startTimeNumeric'] <= 0.5) {
+        dataObj['height'] = '68px';
+      } else if (meetings[index]['endTimeNumeric'] - meetings[index]['startTimeNumeric'] > 0.5) {
+        const spanAcrossSlots = (meetings[index]['endTimeNumeric'] - meetings[index]['startTimeNumeric']) / 0.5;
+        if (spanAcrossSlots % 1 === 0) {
+          const height = (62 + ((spanAcrossSlots - 1) * 62) + ((spanAcrossSlots - 1) * 18) + ((spanAcrossSlots) * 6)) + 'px';
+          dataObj['height'] = height;
+        } else {
+          const height = (62 + ((parseInt(spanAcrossSlots.toString()) - 1) * 62) + ((parseInt(spanAcrossSlots.toString()) - 1) * 18) +
+            ((parseInt(spanAcrossSlots.toString())) * 6)) + 84 + 'px';
+          dataObj['height'] = height;
+        }
+      }
+      meetings[index]['meetingStyles'] = dataObj;
+      allSlotStyles.push(dataObj);
+    }
+    if (calcMeetingWidthFlag) {
+      if(slotObj['conflictingMeetings'] && slotObj['conflictingMeetings'].length) {
+      allSlotStyles = this.calcMeetingsWidth(allSlotStyles,slotObj['conflictingMeetings'].length);
+      }
+      else {
+        allSlotStyles = this.calcMeetingsWidth(allSlotStyles,slotObj['meetings'].length);
+      }
+    }
+    return allSlotStyles;
+  }
+  /**
+   * Handler
+   * @param allMeetings
+   */
+  public calcMeetingsWidth(allMeetings, totalMeetings): Array<any> {
+    const width = (100 / totalMeetings) + '%';
+    for (let index = 0; index < allMeetings.length; index++) {
+      allMeetings[index]['width'] = width;
+    }
+    return allMeetings;
+  }
+  /**
+  * Format the slots of day to be bound in view
+  * @param slotHours
+  */
+  public formatttedSlot(slotHours: number): string {
+    const hours = parseInt(slotHours.toString()).toString();
+    let minutes = slotHours % 1 > 0 ? ((slotHours % 1) * 60).toString() : '00';
+    if (minutes.indexOf('.') > 0) {
+      minutes = minutes.split('.')[0].length > 1 ? minutes.split('.')[0] : 0 + minutes.split('.')[0];
+    }
+    if (slotHours < 12) {
+      return hours.length > 1 ? `${hours}:${minutes} AM` : `0${hours}:${minutes} AM`;
+    } else {
+      const computedHours = parseInt((slotHours - 12).toString()).toString();
+      return computedHours.length > 1 ? `${computedHours}:${minutes} PM` : `0${computedHours}:${minutes} PM`;
+    }
+  }
+  /**
+   * Handler to check if a meeting exists in a slot
+   * Applied check for the deepwork mode and meeting status as deepwork, need to be removed once deepwork and meeting are not dependent on mode selection
+   * @param hours
+   */
+  public isMeetingScheduledInSlot(hours): Array<any> {
+    const meetingsAvailableInSlot = [];
+    if (this.allMeetings.length) {
+      for (let index = 0; index < this.allMeetings.length; index++) {
+        if (!this.deepWorkMode && this.allMeetings[index]['meetingData']['meeting_type'] === 'deepwork') {
+          continue;
+        }
+        else {
+          this.isMeetingInSlot(hours, this.allMeetings[index]) && meetingsAvailableInSlot.push(this.isMeetingInSlot(hours, this.allMeetings[index]));
+        }
+      }
+    }
+    return meetingsAvailableInSlot;
+  }
+
+  public isEmptyMeetingInSlot(hours): Array<any> {
+    const emptyMeetingsAvailableInSlot = [];
+    if (this.emptyMeetingsToShow.length) {
+      for (let index = 0; index < this.emptyMeetingsToShow.length; index++) {
+        if (this.isMeetingInSlot(hours, this.emptyMeetingsToShow[index])) {
+          const dataObj = this.isMeetingInSlot(hours, this.emptyMeetingsToShow[index]);
+          emptyMeetingsAvailableInSlot.push(dataObj);
+        }
+      }
+    }
+    return emptyMeetingsAvailableInSlot;
+  }
+
+  public isMeetingSpannedAcrossSlot(hours): any {
+    if (this.allMeetings.length) {
+      for (let index = 0; index < this.allMeetings.length; index++) {
+        if (this.allMeetings[index]['organizer_profile_id_status'] === 'true' ||
+         ((this.allMeetings[index]['meetingData']['meeting_type'] !== 'deepwork') ? (this.allMeetings[index]['attendees'][0].meetingAttendeeData.status !== 'Pending') : false)) {
+          if (this.allMeetings[index]['meetingData']['meeting_type'] !== 'deepwork') {
+            if (this.isMeetingSpannedInSlot(hours, this.allMeetings[index])) {
+              return {
+                'isSpanned': 'yes'
+              };
+            }
+          }
+        }
+      }
+    }
+  }
+  /**
+   * Handler to fetch all meetings of the user for a single day of calendar
+   * TODO - Call method in horizontalBarData instead of ngOnInit
+   */
+  public fetchOneDayMeetings(startDateTime, endDateTime): void {
+    this.getOneDayMeeting.getAllMeetings(startDateTime, endDateTime, this.loggedInUserId, this.viewType).subscribe((data) => {
+      this.multiDayMeetings = [];
+      this.allMeetings = [];
+      for (let index = 0; index < data.length; index++) {
+        if (data[index].meetingData.meeting_type === 'multiday') {
+          this.multiDayMeetings.push(this.multiDayMeetingList(data[index]));
+        } else {
+          this.allMeetings.push(data[index]);
+        }
+      }
+      this.isMeetingsDisplayed = true;
+      this.generateSlots();
+      if (moment(this.selectedDateData.date).isSameOrAfter(moment(), 'day')) {
+        this.generateEmptySlots();
+      } else {
+        this.allEmptySlots = [];
+      }
+    });
+    this.canceledMeeting.getAllCanceledMeetings(startDateTime, this.loggedInUserId).subscribe(data => {
+      this.emitCancelledMeetingData.emit({ canceledMeetingData: data });
+    });
+  }
+  /**
+   * Handler to calculate height of the main view day contents
+   * TODO - Call method in horizontalBarData instead of ngOnInit
+   */
+  public calculateHeight(): Object {
+    if (this.multiDayMeetings) {
+      const value = this.multiDayMeetings.length;
+      let calHeight = 0 + 'px';
+      if (value) {
+        calHeight = (34 * value) + 'px';
+      }
+      return { height: `calc(100vh - 252px - 25px - ${calHeight})` };
+    }
+    return {};
+  }
+  /**
+ * Handler to be called to fetch all multiday meetings greater than 24hrs
+ */
+  public multiDayMeetingList(meeting) {
+    const multiDayObj = meeting;
+    const startDateTime = moment(meeting['meetingData']['meeting_start_time']);
+    const endDatetime = moment(meeting['meetingData']['meeting_end_time']);
+    multiDayObj['multiDayStartDate'] = startDateTime;
+    multiDayObj['multiDayEndDate'] = endDatetime;
+    multiDayObj['multiDayStartTime'] = startDateTime.format('LT');
+    multiDayObj['multiDayEndTime'] = endDatetime.format('LT');
+    multiDayObj['startTime'] = this.formatttedSlot(startDateTime.hours() + Number((startDateTime.minutes() / 60)));
+    multiDayObj['endTime'] = this.formatttedSlot(endDatetime.hours() + Number((endDatetime.minutes() / 60)));
+    return multiDayObj;
+  }
+
+  public isMeetingSpannedInSlot(hours, meeting) {
+    const endHours = hours + 0.5;
+    const startDateTime = moment(meeting.meetingData.meeting_start_time);
+    const endDatetime = moment(meeting.meetingData.meeting_end_time);
+    if (startDateTime.isSame(this.selectedDateData.date, 'day')) {
+      if (startDateTime.isSame(endDatetime, 'day')) {
+        if (hours >= (startDateTime.hours() + startDateTime.minutes() / 60) && endHours <= (endDatetime.hours() + endDatetime.minutes() / 60)) {
+          return true;
+        } else if (hours >= (startDateTime.hours() + startDateTime.minutes() / 60) &&
+          (endDatetime.hours() + endDatetime.minutes() / 60) === (moment(startDateTime).endOf('day').get('hours') + moment(startDateTime).endOf('day').get('minutes') / 60)) {
+          return true;
+        } else {
+          return false;
+        }
+      } else {
+        const endTimeOfMultiDate = moment(startDateTime.endOf('day'));
+        const actualEndDate = moment(meeting.meetingData.meeting_end_time);
+        const actualStartDate = moment(meeting.meetingData.meeting_start_time);
+        if (hours >= (actualStartDate.hours() + actualStartDate.minutes() / 60) && endHours <= (endTimeOfMultiDate.hours() + endTimeOfMultiDate.minutes() / 60)) {
+          return true;
+        } else if (hours >= (actualStartDate.hours() + actualStartDate.minutes() / 60) &&
+          (endTimeOfMultiDate.hours() + endTimeOfMultiDate.minutes() / 60) === (moment(actualStartDate).endOf('day').get('hours')
+            + moment(actualStartDate).endOf('day').get('minutes') / 60)) {
+          return true;
+        } else {
+          return false;
+        }
+      }
+
+    } else {
+      const startMultipleTime = moment(endDatetime.startOf('day'));
+      const actualEndDate = moment(meeting.meetingData.meeting_end_time);
+      const actualStartDate = moment(meeting.meetingData.meeting_start_time);
+      if (hours >= (startMultipleTime.hours() + startMultipleTime.minutes() / 60) && endHours <= (actualEndDate.hours() + actualEndDate.minutes() / 60)) {
+        return true;
+      } else if (hours >= (startMultipleTime.hours() + startMultipleTime.minutes() / 60) &&
+        (actualEndDate.hours() + actualEndDate.minutes() / 60) === (moment(actualStartDate).endOf('day').get('hours')
+          + moment(actualStartDate).endOf('day').get('minutes') / 60)) {
+        return true;
+      } else {
+        return false;
+      }
+    }
+  }
+
+  /**
+   * Handler to determine if meeting is availabe in a slot
+   * TODO - Check if the date is same as selected by user
+   * TODO - Check if the meeting spans across multiple days , if its then cut it off at the end of the day
+   * @param hours
+   * @param meeting
+   */
+  public isMeetingInSlot(hours: number, meeting) {
+    const endHours = hours + 0.5;
+    const startDateTime = moment(meeting.meetingData.meeting_start_time);
+    const endDatetime = moment(meeting.meetingData.meeting_end_time);
+    // Update meeting object with start time and end time along with meridian specifier
+    // Add start and end time numerical values which will help in genearting dynamic height of the meeting slot
+    if (startDateTime.isSame(this.selectedDateData.date, 'day')) {
+      if (hours <= (startDateTime.hours() + startDateTime.minutes() / 60) && (endHours > (startDateTime.hours() + startDateTime.minutes() / 60))) {
+        const dataObj = meeting;
+        dataObj['startTime'] = this.formatttedSlot(startDateTime.hours() + Number((startDateTime.minutes() / 60)));
+        dataObj['endTime'] = this.formatttedSlot(endDatetime.hours() + Number((endDatetime.minutes() / 60)));
+        dataObj['meetingDisplayStartTime'] = this.updateDisplayValue(this.formatttedSlot(startDateTime.hours() + Number((startDateTime.minutes() / 60))));
+        dataObj['meetingDisplayEndTime'] = this.updateDisplayValue(this.formatttedSlot(endDatetime.hours() + Number((endDatetime.minutes() / 60))));
+        dataObj['startTimeNumeric'] = startDateTime.hours() + (Number(startDateTime.minutes()) > 0 ? Number(startDateTime.minutes()) / 60 : 0);
+        if (startDateTime.isSame(endDatetime, 'day')) {
+          dataObj['endTimeNumeric'] = endDatetime.hours() + (Number(endDatetime.minutes()) > 0 ? Number(endDatetime.minutes()) / 60 : 0);
+        } else {
+          const endTime = moment(startDateTime.endOf('day'));
+          dataObj['endTimeNumeric'] = endTime.hours() + (Number(endTime.minutes()) > 0 ? Number(endTime.minutes()) / 60 : 0);
+          dataObj['multiDayStartDate'] = startDateTime;
+          dataObj['multiDayEndDate'] = endDatetime;
+        }
+        return meeting;
+      } else {
+        return false;
+      }
+    } else {
+      const startMultipleTime = moment(endDatetime.startOf('day'));
+      const startDateTimeMultiDay = moment(meeting.meetingData.meeting_start_time);
+      const endDateTimeMultiDay = moment(meeting.meetingData.meeting_end_time);
+      if (hours <= (startMultipleTime.hours() + startMultipleTime.minutes() / 60) && (endHours > (startMultipleTime.hours() + startMultipleTime.minutes() / 60))
+        && (meeting.meetingData.meeting_type !== 'multiday')) {
+        const dataObj = meeting;
+        dataObj['startTime'] = this.formatttedSlot(startDateTimeMultiDay.hours() + Number((startDateTimeMultiDay.minutes() / 60)));
+        dataObj['endTime'] = this.formatttedSlot(endDateTimeMultiDay.hours() + Number((endDateTimeMultiDay.minutes() / 60)));
+        dataObj['meetingDisplayStartTime'] = this.updateDisplayValue(this.formatttedSlot(startDateTimeMultiDay.hours() + Number((startDateTimeMultiDay.minutes() / 60))));
+        dataObj['meetingDisplayEndTime'] = this.updateDisplayValue(this.formatttedSlot(endDateTimeMultiDay.hours() + Number((endDateTimeMultiDay.minutes() / 60))));
+        dataObj['endTimeNumeric'] = endDateTimeMultiDay.hours() + (Number(endDateTimeMultiDay.minutes()) > 0 ? Number(endDateTimeMultiDay.minutes()) / 60 : 0);
+        dataObj['startTimeNumeric'] = startMultipleTime.hours() + (Number(startMultipleTime.minutes()) > 0 ? Number(startMultipleTime.minutes()) / 60 : 0);
+        dataObj['multiDayStartDate'] = startDateTime;
+        dataObj['multiDayEndDate'] = endDatetime;
+        return dataObj;
+      } else {
+        return false;
+      }
+    }
+  }
+
+  public updateDisplayValue(time) {
+    let updatedDisplayValue;
+    updatedDisplayValue = time.slice(0, 2) === '00' ? '12' + time.slice(2, 8) : time;
+    return updatedDisplayValue;
+  }
+  /**
+   * Handler to be called to notify landing page of the selected meeting Id
+   * TODO - Meeting color code differentiation
+   * @param eventData
+   */
+  public displayMeetingDetails(dataByIndex, allMeetingsDetails, pinnedTaskArray) {
+    this.currentSlot = null;
+    this.clikedMeetingId = dataByIndex.meetingId;
+    this.clickedMeetingData = dataByIndex;
+    this.highliteMeetingCard = true;
+    this.isMeetingConflict = false;
+    if (allMeetingsDetails) {
+      const result = allMeetingsDetails.filter(array => array.meetingData.meeting_type !== 'deepwork');
+      if (result.length > 1) {
+        this.isMeetingConflict = true;
+      } else {
+        this.isMeetingConflict = false;
+      }
+    }
+    if (dataByIndex.meetingData.meeting_type !== 'deepwork') {
+      this.showMeetingDetails.emit({
+        meetingId: dataByIndex.meetingId, conflict: this.isMeetingConflict, selectedDate: this.selectedDateData.date,
+        isCancelledMeeting: false, pinnedTaskArray: pinnedTaskArray, meetingDetails: dataByIndex, allMeetingsDetails : allMeetingsDetails
+      });
+    }
+  }
+  /**
+   * Handler to set color codings for meetings
+   * @param meeting
+   */
+  public meetingColorCoding(meeting) {
+    let dataObj = {};
+    /**
+     * Styles for meeting accepted status
+     */
+    const accepted = {
+      'border-radius': '5px',
+      'border': 'solid 1px #bbc6e1',
+      'backgroundColor': '#eaf0ff'
+    };
+    /**
+     * Styles for meeting pending status
+     */
+    const pending = {
+      'border-radius': '5px',
+      'border': 'solid 1px #ebcfad',
+      'backgroundColor': '#fdf5eb'
+    };
+    /**
+     * Styles for elapsed meeting status
+     */
+    const elapsed = {
+      'border': 'solid 1px #dedede',
+      'backgroundColor': '#f6f6f6'
+    };
+    /**
+     * Styles for deepwork
+     */
+    const deepworkSlot = {
+      'boxShadow': '0 6px 14px 0 rgba(188, 188, 188, 0.53)',
+      'border': 'dotted 2px #4a90e2',
+      'background-image': 'linear-gradient(to left, #cfdff4 20%, #ffffff 20%)',
+      'background-size': '8px 100%',
+      'opacity': '0.7'
+    };
+    // Check if the meeting has elapsed or not, if it has elapsed then it has to be greyed out,
+    // else color code to be applied as per the status
+    if (this.isMeetingNotElapsed(meeting)) {
+      if (this.loggedInUserId === Number(meeting.organizerProfileId)) {
+        if (meeting.meetingData.meeting_type === 'deepwork') {
+          dataObj = deepworkSlot;
+        } else if (meeting.meetingData.meeting_type !== 'deepwork') {
+          dataObj = accepted;
+        }
+      } else {
+        if (meeting.attendees.length) {
+          for (let index = 0; index < meeting.attendees.length; index++) {
+            if (this.loggedInUserId === Number(meeting.attendees[index].userProfileId)) {
+              if (meeting.attendees[index].meetingAttendeeData.status === 'Accepted') {
+                dataObj = accepted;
+                break;
+              } else if (meeting.attendees[index].meetingAttendeeData.status === 'Pending') {
+                dataObj = pending;
+                break;
+              }
+            }
+          }
+        }
+      }
+    } else {
+      dataObj = elapsed;
+    }
+    return dataObj;
+  }
+  /**
+   * Handler to check if the meeting has elapsed or going on
+   * Check if the date is current date or in past then return elsapsed based on start and end time , for future dates it will not be applicable
+   * @param meeting
+   */
+  public isMeetingNotElapsed(meeting): boolean {
+    const dateTimeNow = moment();
+    if (moment(dateTimeNow).isSame(moment(this.selectedDateData.date), 'day')) {
+      if (moment(meeting.meetingData.meeting_start_time).isAfter(dateTimeNow) || moment(meeting.meetingData.meeting_end_time).isAfter(dateTimeNow)) {
+        return true;
+      } else {
+        return false;
+      }
+    } else if (moment(this.selectedDateData.date).isBefore(moment(dateTimeNow))) {
+      return false;
+    } else {
+      return true;
+    }
+  }
+
+  public getOrdinalIndicator(currentDate: number) {
+    if (currentDate === 1 || currentDate === 21 || currentDate === 31) {
+      return 'ST';
+    } else if (currentDate === 2 || currentDate === 22) {
+      return 'ND';
+    } else if (currentDate === 3 || currentDate === 23) {
+      return 'RD';
+    } else {
+      return 'TH';
+    }
+  }
+
+  public slotClicked(data) {
+    if (data && this.isLegitimateTime(data)) {
+      this.selectedDateData.date._d.setHours(data.displayTime.slice(0, 2), data.displayTime.slice(3, 5), '00');
+      const selected: DateTimeDuration = new DateTimeDuration('0.5 HOUR', 'half', 30);
+      const dateAndOrdinal = `${this.selectedDateData.date.format('ddd')}, ${this.selectedDateData.date.format('DD')}${this.getOrdinalIndicator(this.selectedDateData.date._d.getDate())} ${this.selectedDateData.date.format('MMM')}`;
+      this.dataCaptureService.setData(this.propertySetter, {
+        'dateAndOrdinal': dateAndOrdinal,
+        'displayStartTime': data.displayTime,
+        'displayEndTime': data.displayEndTime === '12:00 PM' ? '00:00 AM' : data.displayEndTime,
+        'date': this.selectedDateData.date._d,
+        'durationDropDownValue': selected
+      });
+      this.dataCaptureService.emptySlotSelected = true;
+      this.emptySlotClicked.emit();
+    }
+  }
+
+  public eaSlotClicked(data) {
+    this.currentSlot = data.displayTime;
+    this.emitSelectedSlotData(data);
+    if (data && this.isLegitimateTime(data)) {
+      this.selectedDateData.date._d.setHours(data.displayTime.slice(0, 2), data.displayTime.slice(3, 5), '00');
+      const dateAndOrdinal = `${this.selectedDateData.date.format("ddd")}, ${this.selectedDateData.date.format('DD')}${this.getOrdinalIndicator(this.selectedDateData.date._d.getDate())} ${this.selectedDateData.date.format('MMM')}`;
+      this.dataCaptureService.setData(this.propertySetter, {
+        'dateAndOrdinal': dateAndOrdinal, 'displayStartTime': data.displayTime,
+        'displayEndTime': Number(data.emptyMeetings[0].endTime.split(':')[0]) >= 11 ? '11:30 PM' : data.emptyMeetings[0].endTime, 'date': this.selectedDateData.date._d
+      });
+      this.dataCaptureService.eaSlotSelected = true;
+    }
+    this.eaSlotFromCalendarClicked.emit();
+  }
+  /**
+   * Handler to be called on click of EA slot and send dat to component for selection
+   * @param slotData
+   */
+  public emitSelectedSlotData(slotData) {
+    const slotStartTime = slotData.emptyMeetings[0].startTime;
+    const slotEndtime = slotData.emptyMeetings[0].endTime;
+    const slotStartHours = slotStartTime.indexOf('PM') ? Number(slotStartTime.split(' ')[0].split(':')[0]) + 12 : Number(slotStartTime.split(' ')[0].split(':')[0]);
+    const slotEndHours = slotEndtime.indexOf('PM') ? Number(slotEndtime.split(' ')[0].split(':')[0]) + 12 : Number(slotEndtime.split(' ')[0].split(':')[0]);
+    const startDatetime = moment(this.selectedDateData.date).set({ hour: slotStartHours, minute: Number(slotStartTime.split(' ')[0].split(':')[1]) });
+    const endDateTime = moment(this.selectedDateData.date).set({ hour: slotEndHours, minute: Number(slotEndtime.split(' ')[0].split(':')[1]) });
+    if (startDatetime.isSameOrAfter(moment()) || endDateTime.isAfter(moment())) {
+      this.emitSelectedEASlotDate.emit({ slot: slotData });
+    }
+  }
+  /**
+    * Handler to sort meetings based on start time
+    * @param meetings
+    */
+  public sortMeetings(meetings) {
+    return meetings.sort((previous, next) => {
+      const startNumericValue = this.calculateTotalMeetingHours(previous);
+      const endNumericValue = this.calculateTotalMeetingHours(next);
+      return endNumericValue - startNumericValue;
+    });
+  }
+  /**
+   * Handler to be called to return calculated meeting hours for sorting
+   * @param meeting 
+   */
+  public calculateTotalMeetingHours(meeting) {
+    let totalMeetingHours = 0;
+    if(moment(meeting.meetingData.meeting_end_time).isSame(moment(meeting.meetingData.meeting_start_time), 'day')) {
+      totalMeetingHours = (moment(meeting.meetingData.meeting_end_time).hours() + moment(meeting.meetingData.meeting_end_time).minutes() / 60) - (moment(meeting.meetingData.meeting_start_time).hours() + moment(meeting.meetingData.meeting_start_time).minutes() / 60);
+    }
+    else {
+      totalMeetingHours = (moment(meeting.meetingData.meeting_end_time).hours() + moment(meeting.meetingData.meeting_end_time).minutes() / 60) + (24 - (moment(meeting.meetingData.meeting_start_time).hours() + moment(meeting.meetingData.meeting_start_time).minutes() / 60));
+    }
+    return totalMeetingHours;
+  }
+
+  public isLegitimateTime(data) {
+    const hours = data.displayTime.includes('PM') ? Number(data.displayTime.split(':')[0]) + 12 : Number(data.displayTime.split(':')[0]);
+    const endHours = data.displayEndTime.includes('PM') ? Number(data.displayEndTime.split(':')[0]) + 12 : Number(data.displayEndTime.split(':')[0]);
+    const minutes = Number((data.displayTime.split(':')[1]).split(' ')[0]);
+    if (moment(moment(this.selectedDateData.date).format('YYYY-MM-DD')).isBefore(moment().format('YYYY-MM-DD'))) {
+      this.isCurrentTime = false;
+      return false;
+    }
+    if (moment(this.selectedDateData.date).isAfter(moment())) {
+      this.isCurrentTime = false;
+      return true;
+    }
+    if (hours > moment().hours()) {
+      this.isCurrentTime = false;
+      return true;
+    } else if (hours === moment().hours() && (minutes > moment().minutes()
+      || (Number((data.displayEndTime.split(':')[1]).split(' ')[0]) > moment().minutes()))
+      || endHours > moment().hours()) {
+      if (hours === moment().hours() && ((moment().minutes() >= 30 && (Number((data.displayTime.split(':')[1]).split(' ')[0]) === 30)) 
+          || (moment().minute() < 30 && (Number((data.displayTime.split(':')[1]).split(' ')[0]) === 0)))) {
+          this.isCurrentTime = true;
+          return true;
+      }
+    } else {
+      this.isCurrentTime = false;
+      return false;
+    }
+  }
+
+  public dateDensity(event) {
+    this.totalMeetingHours = event;
+  }
+}
