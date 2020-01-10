@@ -398,19 +398,39 @@ export class OneDayViewComponent implements OnInit, OnChanges, AfterViewChecked,
    * @param slotObj 
    */
   public setWidthForEachConflictingMeeting(slotObj) {
-    let width;
+    const width = this.getMinimumWidth(slotObj);
+    let calcWidth;
     for(let index = 0; index < slotObj['conflictingMeetings'].length; index++) {
       if(slotObj['conflictingMeetings'][index]['conflictingWith'].length) {
         for(let key = 0; key < slotObj['conflictingMeetings'][index]['conflictingWith'].length; key++) {
           if(slotObj['conflictingMeetings'][index]['conflictingWith'][key]['meetingStyles'] && slotObj['conflictingMeetings'][index]['conflictingWith'][key]['meetingStyles']['width']) {
-            width = Number(slotObj['conflictingMeetings'][index]['conflictingWith'][key]['meetingStyles']['width'].split('').splice(0,slotObj['conflictingMeetings'][index]['conflictingWith'][key]['meetingStyles']['width'].length - 1).join(''));
+            calcWidth = Number(slotObj['conflictingMeetings'][index]['conflictingWith'][key]['meetingStyles']['width'].split('').splice(0,slotObj['conflictingMeetings'][index]['conflictingWith'][key]['meetingStyles']['width'].length - 1).join(''));
           }
-          if(slotObj['conflictingMeetings'][index]['conflictingWith'][key]['meetingStyles'] && width > 100/slotObj['conflictingMeetings'].length) {
-            slotObj['conflictingMeetings'][index]['conflictingWith'][key]['meetingStyles']['width'] = `${100/slotObj['conflictingMeetings'].length}%`;
+          if(slotObj['conflictingMeetings'][index]['conflictingWith'][key]['meetingStyles'] && calcWidth > width) {
+            slotObj['conflictingMeetings'][index]['conflictingWith'][key]['meetingStyles']['width'] = `${width}%`;
           }
         }
       }
     }
+  }
+  /**
+   * Handler to be called to find minimum width
+   * @param slotObj 
+   */
+  public getMinimumWidth(slotObj) {
+    let width;
+    let calcWidth;
+    for(let index = 0; index < slotObj['conflictingMeetings'].length; index++) {
+      if(slotObj['conflictingMeetings'][index]['conflictingWith'].length) {
+        for(let key = 0; key < slotObj['conflictingMeetings'][index]['conflictingWith'].length; key++) {
+          if(slotObj['conflictingMeetings'][index]['conflictingWith'][key]['meetingStyles'] && slotObj['conflictingMeetings'][index]['conflictingWith'][key]['meetingStyles']['width']) {
+            calcWidth = Number(slotObj['conflictingMeetings'][index]['conflictingWith'][key]['meetingStyles']['width'].split('').splice(0,slotObj['conflictingMeetings'][index]['conflictingWith'][key]['meetingStyles']['width'].length - 1).join(''));
+            width = width ? width > calcWidth ? calcWidth : width : calcWidth;
+          }
+        }
+      }
+    }
+    return width;
   }
   /**
    * Handler to define position index for each meeting depending upon its postion in the conflicts collection
